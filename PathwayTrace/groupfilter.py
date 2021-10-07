@@ -16,7 +16,7 @@
 #  GNU General Public License for more details.
 #
 #  You should have received a copy of the GNU General Public License
-#  along with ProofReader.  If not, see <http://www.gnu.org/licenses/>.
+#  along with PathwayTrace.  If not, see <http://www.gnu.org/licenses/>.
 #
 #######################################################################
 
@@ -33,7 +33,7 @@ def get_options():
     required.add_argument("-o", "--output", default=None, type=str, required=True,
                           help="path to output fasta")
     optional.add_argument("-t", "--info", default=None, type=str, required=False,
-                          help="file that contains all identical headers")
+                          help="file that contains all headers of identical sequences")
     args = parser.parse_args()
     main(args.input, args.output, args.info)
 
