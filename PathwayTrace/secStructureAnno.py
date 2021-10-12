@@ -39,10 +39,24 @@ def parse_porter(infile):
     return struc
 
 
-def prepare_annojobs(infile, tmppath, porterpath, cpus):
+def parse_aucpred(infile):
+    struc = ''
+    with open(infile, 'r') as toparse:
+        for line in toparse.readlines():
+            if not line[0] == '#':
+                if line.split()[2] == '*':
+                    struc = struc + '1'
+                elif line.split()[2] == '.':
+                    struc = struc + '0'
+                else:
+                    raise Exception('Disordered annotation seems to be faulty!')
+    return struc
+
+
+def prepare_annojobs(infile, tmppath, porterpath, cpus, aucpred):
     annojobs = []
     for seq in SeqIO.parse(infile, 'fasta'):
-        annojobs.append([seq.id, str(seq.seq), tmppath, porterpath, str(cpus)])
+        annojobs.append([seq.id, str(seq.seq), tmppath, porterpath, str(cpus), aucpred])
     return annojobs
 
 
@@ -66,40 +80,46 @@ def make_tmp_fasta(header, seq, path):
         out.write('>' + header + '\n' + seq)
 
 
-def run_anno(inpath, outpath, tmppath, cpus, parallel, porterpath):
+def run_anno(inpath, outpath, tmppath, cpus, parallel, porterpath, aucpred):
     name = ''.join(inpath.split('/')[-1].split('.')[0:-1])
     Path(outpath).mkdir(parents=True, exist_ok=True)
     Path(tmppath + name + '/').mkdir(parents=True, exist_ok=True)
-    joblist = prepare_annojobs(inpath, tmppath + name + '/', porterpath, cpus)
+    joblist = prepare_annojobs(inpath, tmppath + name + '/', porterpath, cpus, aucpred)
     out = []
     pool = mp.Pool(parallel)
     try:
         for _ in tqdm(pool.imap_unordered(run_anno_single, joblist), total=len(joblist), mininterval=1.0):
             out.append(_)
     except subprocess.CalledProcessError:
-        raise 'Something went wrong while running Porter.'
+        raise 'Something went wrong during annotation.'
     pool.close()
     write_output(out, outpath + '/' + name)
     Path(tmppath + name + '/').rmdir()
 
 
 def write_output(out, outpath):
-    ss3 = open(outpath + '.ss3', 'w')
-    ss8 = open(outpath + '.ss8', 'w')
-    for seq in out:
-        ss3.write('>' + seq[0] + '\n' + seq[1] + '\n')
-        ss8.write('>' + seq[0] + '\n' + seq[2] + '\n')
-    ss3.close()
-    ss8.close()
+    with open(outpath + '.structure', 'w') as output:
+        for seq in out:
+            output.write('>' + seq[0] + '\n' + seq[1] + '\n' + seq[2] + '\n' + seq[3] + '\n')
 
 
 def run_anno_single(args):
-    header, seq, tmppath, porter, cpus = args
+    header, seq, tmppath, porter, cpus, aucpred = args
     make_tmp_fasta(header, seq, tmppath)
     ss3, ss8 = run_porter(tmppath + header, porter, cpus)
+    disorder = run_aucpred(header, tmppath, aucpred)
     if os.path.exists(tmppath + header + '.fasta'):
         os.remove(tmppath + header + '.fasta')
-    return header, ss3, ss8
+    return header, ss3, ss8, disorder
+
+
+def run_aucpred(header, tmppath, aucpred):
+    cmd = aucpred + ' -i ' + tmppath + header + '.fasta -o ' + tmppath
+    subprocess.run([cmd], shell=True, capture_output=True, check=True)
+    disorder = parse_aucpred(tmppath + header + '.diso_noprof')
+    for i in ['.diso_noprof', '.diso_prev']:
+        remove_tmp(tmppath + header + i)
+    return disorder
 
 
 def main():
@@ -118,8 +138,10 @@ def main():
                           help="number of parallel runs of porter")
     optional.add_argument("-p", "--porter", default=None, type=str, required=False,
                           help="Path to porter")
+    optional.add_argument("-a", "--aucpred", default=None, type=str, required=False,
+                          help="Path to porter")
     args = parser.parse_args()
-    run_anno(args.input, args.outPath, args.tmp, args.cpus, args.parallel, args.porter)
+    run_anno(args.input, args.outPath, args.tmp, args.cpus, args.parallel, args.porter, args.aucpred)
 
 
 if __name__ == '__main__':
