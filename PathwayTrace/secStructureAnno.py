@@ -88,7 +88,7 @@ def run_anno(inpath, outpath, tmppath, cpus, parallel, porterpath, aucpred):
     out = []
     pool = mp.Pool(parallel)
     try:
-        for _ in tqdm(pool.imap_unordered(run_anno_single, joblist), total=len(joblist), mininterval=1.0):
+        for _ in tqdm(pool.imap_unordered(run_anno_single, joblist), total=len(joblist), mininterval=5.0):
             out.append(_)
     except subprocess.CalledProcessError:
         raise 'Something went wrong during annotation.'
@@ -98,19 +98,34 @@ def run_anno(inpath, outpath, tmppath, cpus, parallel, porterpath, aucpred):
 
 
 def write_output(out, outpath):
-    with open(outpath + '.structure', 'w') as output:
-        for seq in out:
-            output.write('>' + seq[0] + '\n' + seq[1] + '\n' + seq[2] + '\n' + seq[3] + '\n')
+    failed = []
+    for seq in out:
+        if not seq[1]:
+            failed.append(seq[0])
+    if not len(failed) == len(out):
+        with open(outpath + '.structure', 'w') as output:
+            for seq in out:
+                if seq[1]:
+                    output.write('>' + seq[0] + '\n' + seq[1] + '\n' + seq[2] + '\n' + seq[3] + '\n')
+    if failed:
+        print("Errors occured for the annotation of the following sequnces:")
+        for i in failed:
+            print(i)
 
 
 def run_anno_single(args):
     header, seq, tmppath, porter, cpus, aucpred = args
     make_tmp_fasta(header, seq, tmppath)
-    ss3, ss8 = run_porter(tmppath + header, porter, cpus)
-    disorder = run_aucpred(header, tmppath, aucpred)
-    if os.path.exists(tmppath + header + '.fasta'):
-        os.remove(tmppath + header + '.fasta')
-    return header, ss3, ss8, disorder
+    try:
+        ss3, ss8 = run_porter(tmppath + header, porter, cpus)
+        disorder = run_aucpred(header, tmppath, aucpred)
+        if os.path.exists(tmppath + header + '.fasta'):
+            os.remove(tmppath + header + '.fasta')
+        return header, ss3, ss8, disorder
+    except:
+        if os.path.exists(tmppath + header + '.fasta'):
+            os.remove(tmppath + header + '.fasta')
+        return header, None, None, None
 
 
 def run_aucpred(header, tmppath, aucpred):
