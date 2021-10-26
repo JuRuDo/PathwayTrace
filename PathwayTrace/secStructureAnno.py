@@ -55,8 +55,13 @@ def parse_aucpred(infile):
 
 def prepare_annojobs(infile, tmppath, porterpath, cpus, aucpred):
     annojobs = []
+    ids = []
     for seq in SeqIO.parse(infile, 'fasta'):
-        annojobs.append([seq.id, str(seq.seq), tmppath, porterpath, str(cpus), aucpred])
+        if seq.id in ids:
+            raise Exception('Headers in the fasta are not unique.')
+        else:
+            ids.append(seq.id)
+            annojobs.append([seq.id, str(seq.seq), tmppath, porterpath, str(cpus), aucpred])
     return annojobs
 
 
