@@ -28,6 +28,7 @@ from pathlib import Path
 import multiprocessing as mp
 from tqdm import tqdm
 import argparse
+import shutil
 
 
 def parse_porter(infile):
@@ -86,7 +87,11 @@ def make_tmp_fasta(header, seq, path):
 
 
 def run_anno(inpath, outpath, tmppath, cpus, parallel, porterpath, aucpred):
-    name = ''.join(inpath.split('/')[-1].split('.')[0:-1])
+    tmp = inpath.split('/')[-1].split('.')
+    if len(tmp) == 1:
+        name = tmp[0]
+    else:
+        name = ''.join(tmp[0:-1])
     Path(outpath).mkdir(parents=True, exist_ok=True)
     Path(tmppath + name + '/').mkdir(parents=True, exist_ok=True)
     joblist = prepare_annojobs(inpath, tmppath + name + '/', porterpath, cpus, aucpred)
@@ -99,7 +104,7 @@ def run_anno(inpath, outpath, tmppath, cpus, parallel, porterpath, aucpred):
         raise 'Something went wrong during annotation.'
     pool.close()
     write_output(out, outpath + '/' + name)
-    Path(tmppath + name + '/').rmdir()
+    shutil.rmtree(tmppath + name + '/')
 
 
 def write_output(out, outpath):
